@@ -46,14 +46,14 @@ guilded.on('ready', () => {
 });
 
 discord.on(Events.MessageCreate, async (message) => {
-    if (message.author.bot) return;
+    if (message.author?.id === discordBotUserId) return;
     if (await getGuildedFromDiscord(message.id)) return;
 
     const guildedChannelId = discordToGuilded[message.channel.id];
     if (!guildedChannelId) return;
 
     try {
-        const lines = discordToGuildedMessage(message);
+    const { content, embeds } = discordToGuildedMessage(message);
 
         const files = [];
         for (const att of message.attachments.values()) {
@@ -78,7 +78,8 @@ discord.on(Events.MessageCreate, async (message) => {
         }
 
         const sent = await guilded.messages.send(guildedChannelId, {
-            content: lines[0],
+            content,
+            embeds: embeds && embeds.length ? embeds : undefined,
             files,
             ...(replyMessageIds.length ? { replyMessageIds } : {})
         });
@@ -90,7 +91,7 @@ discord.on(Events.MessageCreate, async (message) => {
 });
  
 discord.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
-    if (newMessage.author?.bot) return;
+    if (newMessage.author?.id === discordBotUserId) return;
 
     const guildedChannelId = discordToGuilded[newMessage.channel.id];
     if (!guildedChannelId) return;
@@ -99,9 +100,10 @@ discord.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
         const guildedMsgId = getGuildedFromDiscord(newMessage.id);
         if (!guildedMsgId) return;
 
-        const lines = discordToGuildedMessage(newMessage);
+        const { content, embeds } = discordToGuildedMessage(newMessage);
         await guilded.messages.update(guildedChannelId, guildedMsgId, {
-            content: lines[0]
+            content,
+            embeds: embeds && embeds.length ? embeds : undefined
         });
     } catch (err) {
         console.error('Error editing Guilded message:', err);
@@ -109,14 +111,14 @@ discord.on(Events.MessageUpdate, async (oldMessage, newMessage) => {
 });
 
 guilded.on('messageCreated', async (message) => {
-    if (message.createdByBotId || message.createdById === guildedBotUserId) return;
+    if (message.createdById === guildedBotUserId) return;
     if (await getDiscordFromGuilded(message.id)) return;
 
     const discordChannelId = guildedToDiscord[message.channelId];
     if (!discordChannelId) return;
 
     try {
-        const lines = guildedToDiscordMessage(message);
+    const { content, embeds } = guildedToDiscordMessage(message);
         const files = [];
         for (const att of (message.attachments || [])) {
             try {
@@ -141,7 +143,8 @@ guilded.on('messageCreated', async (message) => {
 
         const channel = await discord.channels.fetch(discordChannelId);
         const sent = await channel.send({
-            content: lines[0],
+            content,
+            embeds: embeds && embeds.length ? embeds : undefined,
             files,
             ...(messageReference ? { reply: messageReference } : {})
         });
@@ -153,7 +156,7 @@ guilded.on('messageCreated', async (message) => {
 });
 
 guilded.on('messageUpdated', async (message) => {
-    if (message.createdByBotId || message.createdById === guildedBotUserId) return;
+    if (message.createdById === guildedBotUserId) return;
 
     const discordChannelId = guildedToDiscord[message.channelId];
     if (!discordChannelId) return;
@@ -165,8 +168,12 @@ guilded.on('messageUpdated', async (message) => {
         const channel = await discord.channels.fetch(discordChannelId);
         const original = await channel.messages.fetch(discordMsgId);
 
-        const lines = guildedToDiscordMessage(message);
-        await original.edit(`${lines[0]} *(edited)*`);
+        const { content, embeds } = guildedToDiscordMessage(message);
+        // Discord edit: include embeds if present, and mark edited
+        await original.edit({
+            content: `${content} *(edited)*`,
+            embeds: embeds && embeds.length ? embeds : []
+        });
     } catch (err) {
         console.error('Error editing Discord message:', err);
     }

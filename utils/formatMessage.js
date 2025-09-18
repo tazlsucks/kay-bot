@@ -4,6 +4,34 @@ function formatName({ nickname, username }) {
     : username;
 }
 
+function discordEmbedToGuilded(embed) {
+  const obj = {};
+  if (embed.title) obj.title = embed.title;
+  if (embed.description) obj.description = embed.description;
+  if (embed.url) obj.url = embed.url;
+  if (embed.color) obj.color = embed.color;
+  if (embed.fields && embed.fields.length) obj.fields = embed.fields.map(f => ({ name: f.name, value: f.value, inline: f.inline }));
+  if (embed.thumbnail?.url) obj.thumbnail = { url: embed.thumbnail.url };
+  if (embed.image?.url) obj.image = { url: embed.image.url };
+  if (embed.footer?.text) obj.footer = { text: embed.footer.text };
+  if (embed.author?.name) obj.author = { name: embed.author.name };
+  return obj;
+}
+
+function guildedEmbedToDiscord(embed) {
+  const obj = {};
+  if (embed.title) obj.title = embed.title;
+  if (embed.description) obj.description = embed.description;
+  if (embed.url) obj.url = embed.url;
+  if (embed.color) obj.color = embed.color;
+  if (embed.fields && embed.fields.length) obj.fields = embed.fields.map(f => ({ name: f.name, value: f.value, inline: f.inline }));
+  if (embed.thumbnail?.url) obj.thumbnail = { url: embed.thumbnail.url };
+  if (embed.image?.url) obj.image = { url: embed.image.url };
+  if (embed.footer?.text) obj.footer = { text: embed.footer.text };
+  if (embed.author?.name) obj.author = { name: embed.author.name };
+  return obj;
+}
+
 function discordToGuildedMessage(message) {
   const name = formatName({
     nickname: message.member?.nickname,
@@ -15,8 +43,20 @@ function discordToGuildedMessage(message) {
     .map(att => `[📎 ${att.name}](${att.url})`)
     .join('\n');
 
-  const line = `${name}: ${text}${attachmentLinks ? '\n' + attachmentLinks : ''}`;
-  return [line];
+  // Convert embeds to a simple textual fallback and structured embeds
+  const embedTexts = (message.embeds || [])
+    .map(e => {
+      const parts = [];
+      if (e.title) parts.push(`**${e.title}**`);
+      if (e.description) parts.push(e.description);
+      return parts.join('\n');
+    })
+    .filter(Boolean)
+    .join('\n\n');
+
+  const content = `${name}: ${text}${attachmentLinks ? '\n' + attachmentLinks : ''}${embedTexts ? '\n' + embedTexts : ''}`;
+  const embeds = (message.embeds || []).map(discordEmbedToGuilded).filter(e => Object.keys(e).length);
+  return { content, embeds };
 }
 
 function guildedToDiscordMessage(message) {
@@ -25,7 +65,9 @@ function guildedToDiscordMessage(message) {
     .map(att => `[📎 ${att.filename}](${att.url})`)
     .join('\n');
 
-  return [`${text}${attachmentLinks ? '\n' + attachmentLinks : ''}`];
+  const content = `${text}${attachmentLinks ? '\n' + attachmentLinks : ''}`;
+  const embeds = (message.embeds || []).map(guildedEmbedToDiscord).filter(e => Object.keys(e).length);
+  return { content, embeds };
 }
 
 module.exports = {
